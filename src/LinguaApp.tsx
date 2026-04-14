@@ -14,7 +14,7 @@ import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { BookOpen, Languages, Loader2, Play, Pause, Settings, Plus, Trash2, Search, Volume2, Sparkles, Eye, EyeOff, ChevronsLeft, ChevronsRight } from "lucide-react";
+import { BookOpen, Languages, Loader2, Play, Pause, Settings, Plus, Trash2, Search, Volume2, Sparkles, Eye, EyeOff, ChevronsLeft, ChevronsRight, ChevronRight, ChevronDown } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
 type Provider = "openai" | "anthropic";
@@ -459,10 +459,22 @@ function TokenRenderer({ segment, vocab, settings, onWordSingleClick, onWordDoub
   inline?: boolean;
 }) {
   const orderedTokens = useMemo(() => groupTokensForMatch(segment.tokens), [segment.tokens]);
+  const [touchPreview, setTouchPreview] = useState<{ token: Token; x: number; y: number } | null>(null);
+  const longPressTimerRef = useRef<number | null>(null);
+  const hidePreviewTimerRef = useRef<number | null>(null);
+  const longPressTriggeredRef = useRef(false);
   const original = segment.original;
   const parts: React.ReactNode[] = [];
   let cursor = 0;
   let key = 0;
+  let tokenOrder = 0;
+
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) window.clearTimeout(longPressTimerRef.current);
+      if (hidePreviewTimerRef.current) window.clearTimeout(hidePreviewTimerRef.current);
+    };
+  }, []);
 
   while (cursor < original.length) {
     let bestMatch: Token | null = null;
@@ -491,13 +503,38 @@ function TokenRenderer({ segment, vocab, settings, onWordSingleClick, onWordDoub
           <TooltipTrigger asChild>
             <button
               type="button"
+              data-token-order={tokenOrder}
+              data-token-surface={bestMatch.surface}
+              data-token-meaning={bestMatch.meaning_in_sentence || bestMatch.gloss || bestMatch.lemma}
               onClick={(e) => {
+                if (longPressTriggeredRef.current) {
+                  longPressTriggeredRef.current = false;
+                  e.preventDefault();
+                  return;
+                }
                 e.stopPropagation();
                 onWordSingleClick(bestMatch as Token, segment);
               }}
               onDoubleClick={(e) => {
                 e.stopPropagation();
                 onWordDoubleClick(bestMatch as Token, segment);
+              }}
+              onTouchStart={(e) => {
+                if (longPressTimerRef.current) window.clearTimeout(longPressTimerRef.current);
+                if (hidePreviewTimerRef.current) window.clearTimeout(hidePreviewTimerRef.current);
+                const touch = e.touches[0];
+                longPressTriggeredRef.current = false;
+                longPressTimerRef.current = window.setTimeout(() => {
+                  longPressTriggeredRef.current = true;
+                  setTouchPreview({ token: bestMatch as Token, x: touch.clientX, y: touch.clientY });
+                  hidePreviewTimerRef.current = window.setTimeout(() => setTouchPreview(null), 1800);
+                }, 450);
+              }}
+              onTouchEnd={() => {
+                if (longPressTimerRef.current) window.clearTimeout(longPressTimerRef.current);
+              }}
+              onTouchCancel={() => {
+                if (longPressTimerRef.current) window.clearTimeout(longPressTimerRef.current);
               }}
               className={cn(
                 "rounded px-0.5 transition hover:bg-muted/70",
@@ -523,20 +560,40 @@ function TokenRenderer({ segment, vocab, settings, onWordSingleClick, onWordDoub
     );
 
     cursor += bestMatch.surface.length;
+    tokenOrder += 1;
   }
 
-  return inline ? <span className="whitespace-pre-wrap leading-8 text-lg md:text-xl">{parts}</span> : <div className="whitespace-pre-wrap leading-8 text-lg md:text-xl">{parts}</div>;
+  const content = inline ? <span className="whitespace-pre-wrap leading-8 text-lg md:text-xl">{parts}</span> : <div className="whitespace-pre-wrap leading-8 text-lg md:text-xl">{parts}</div>;
+  return (
+    <>
+      {content}
+      {touchPreview && (
+        <div
+          className="fixed z-50 max-w-[240px] rounded-lg border bg-card px-3 py-2 text-sm shadow-lg"
+          style={{ left: touchPreview.x, top: touchPreview.y - 12, transform: "translate(-50%, -100%)" }}
+        >
+          <div className="font-medium">{touchPreview.token.gloss || touchPreview.token.meaning_in_sentence || touchPreview.token.lemma}</div>
+          <div className="text-xs text-muted-foreground">{touchPreview.token.lemma} · {touchPreview.token.pos}{touchPreview.token.difficulty ? ` · ${touchPreview.token.difficulty}/5` : ""}</div>
+        </div>
+      )}
+    </>
+  );
 }
 
-function FormattedTextRenderer({ originalText, segments, selectedSegmentId, activePlaybackSegment, vocab, settings, onSelectSegment, onOpenWord }: {
+function FormattedTextRenderer({ originalText, segments, selectedSegmentId, activePlaybackSegment, inlineTranslationSegmentId, vocab, settings, onSelectSegment, onToggleInlineTranslation, onOpenWord, showInlineLabel, hideInlineLabel, onSentenceRef }: {
   originalText: string;
   segments: Segment[];
   selectedSegmentId: string | null;
   activePlaybackSegment: string | null;
+  inlineTranslationSegmentId: string | null;
   vocab: VocabMap;
   settings: SettingsState;
   onSelectSegment: (segmentId: string) => void;
+  onToggleInlineTranslation: (segmentId: string) => void;
   onOpenWord: (token: Token, segment: Segment) => void;
+  showInlineLabel: string;
+  hideInlineLabel: string;
+  onSentenceRef?: (segmentId: string, node: HTMLSpanElement | null) => void;
 }) {
   const pieces: React.ReactNode[] = [];
   let cursor = 0;
@@ -551,6 +608,7 @@ function FormattedTextRenderer({ originalText, segments, selectedSegmentId, acti
     pieces.push(
       <span
         key={`segment-${segment.id}`}
+        ref={(node) => onSentenceRef?.(segment.id, node)}
         role="button"
         tabIndex={0}
         onClick={() => onSelectSegment(segment.id)}
@@ -578,6 +636,20 @@ function FormattedTextRenderer({ originalText, segments, selectedSegmentId, acti
         />
       </span>
     );
+    if (isFocused) {
+      const inlineOpen = inlineTranslationSegmentId === segment.id;
+      pieces.push(
+        <button
+          key={`inline-toggle-${segment.id}`}
+          type="button"
+          onClick={() => onToggleInlineTranslation(segment.id)}
+          className="ml-1 inline-flex items-center align-middle text-muted-foreground hover:text-foreground"
+          title={inlineOpen ? hideInlineLabel : showInlineLabel}
+        >
+          {inlineOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+        </button>
+      );
+    }
     cursor = foundAt + segment.original.length;
   });
   if (cursor < originalText.length) pieces.push(<span key="tail">{originalText.slice(cursor)}</span>);
@@ -585,6 +657,9 @@ function FormattedTextRenderer({ originalText, segments, selectedSegmentId, acti
 }
 
 export default function LinguaApp() {
+  type InlineWordOverlayEntry = { left: number; width: number; text: string };
+  type InlineWordOverlayState = { top: number; left: number; width: number; entries: InlineWordOverlayEntry[] };
+
   const [settings, setSettings] = useState<SettingsState>(DEFAULT_SETTINGS);
   const [library, setLibrary] = useState<TextRecord[]>([]);
   const [sourceLang, setSourceLang] = useState("fr");
@@ -602,11 +677,15 @@ export default function LinguaApp() {
   const [showExplanation, setShowExplanation] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activePlaybackSegment, setActivePlaybackSegment] = useState<string | null>(null);
+  const [inlineTranslationSegmentId, setInlineTranslationSegmentId] = useState<string | null>(null);
+  const [inlineWordOverlay, setInlineWordOverlay] = useState<InlineWordOverlayState | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [availableLanguageVoices, setAvailableLanguageVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [vocabVersion, setVocabVersion] = useState(0);
   const diveRequestedRef = useRef(false);
+  const readingPanelRef = useRef<HTMLDivElement | null>(null);
+  const sentenceRefs = useRef<Record<string, HTMLSpanElement | null>>({});
 
   const selectedText = useMemo(() => library.find((t) => t.id === selectedTextId) ?? null, [library, selectedTextId]);
   const selectedSegment = useMemo(() => selectedText?.segments.find((s) => s.id === selectedSegmentId) ?? null, [selectedText, selectedSegmentId]);
@@ -617,6 +696,50 @@ export default function LinguaApp() {
     return library.filter((item) => `${item.title} ${item.originalText}`.toLowerCase().includes(q));
   }, [library, searchTerm]);
   const tx = (en: string, es: string) => (settings.uiLanguage === "es" ? es : en);
+
+  useEffect(() => {
+    function computeInlineWordOverlay() {
+      if (!inlineTranslationSegmentId || !readingPanelRef.current) {
+        setInlineWordOverlay(null);
+        return;
+      }
+      const sentenceEl = sentenceRefs.current[inlineTranslationSegmentId];
+      if (!sentenceEl) {
+        setInlineWordOverlay(null);
+        return;
+      }
+      const tokenNodes = Array.from(sentenceEl.querySelectorAll<HTMLButtonElement>("button[data-token-order]"));
+      if (tokenNodes.length === 0) {
+        setInlineWordOverlay(null);
+        return;
+      }
+      const panelRect = readingPanelRef.current.getBoundingClientRect();
+      const sentenceRect = sentenceEl.getBoundingClientRect();
+      const entries = tokenNodes.map((node) => {
+        const rect = node.getBoundingClientRect();
+        return {
+          left: rect.left - sentenceRect.left,
+          width: rect.width,
+          text: node.dataset.tokenMeaning || node.dataset.tokenSurface || "",
+        };
+      });
+      setInlineWordOverlay({
+        top: sentenceRect.bottom - panelRect.top + 10,
+        left: sentenceRect.left - panelRect.left,
+        width: sentenceRect.width,
+        entries,
+      });
+    }
+
+    computeInlineWordOverlay();
+    const onViewportChange = () => computeInlineWordOverlay();
+    window.addEventListener("resize", onViewportChange);
+    window.addEventListener("scroll", onViewportChange, true);
+    return () => {
+      window.removeEventListener("resize", onViewportChange);
+      window.removeEventListener("scroll", onViewportChange, true);
+    };
+  }, [inlineTranslationSegmentId, selectedSegmentId, readingMode, selectedTextId, vocabVersion]);
 
   useEffect(() => {
     setSettings(storage.loadSettings());
@@ -647,6 +770,7 @@ export default function LinguaApp() {
   function resetComposer() {
     setSelectedTextId(null);
     setSelectedSegmentId(null);
+    setInlineTranslationSegmentId(null);
     setSelectedWord(null);
     setCurrentDive("");
     setTitle("");
@@ -674,6 +798,7 @@ export default function LinguaApp() {
       refreshLibrary();
       setSelectedTextId(id);
       setSelectedSegmentId(segments[0]?.id ?? null);
+      setInlineTranslationSegmentId(null);
       setShowTranslation(!settings.hideTranslations);
       setShowExplanation(false);
     } catch (err) {
@@ -686,6 +811,7 @@ export default function LinguaApp() {
   function handleOpenText(text: TextRecord) {
     setSelectedTextId(text.id);
     setSelectedSegmentId(text.segments[0]?.id ?? null);
+    setInlineTranslationSegmentId(null);
     setSourceLang(text.sourceLang);
     setTargetLang(text.targetLang);
     setSelectedWord(null);
@@ -718,6 +844,10 @@ export default function LinguaApp() {
     } finally {
       setDeepDiveLoading(false);
     }
+  }
+
+  function toggleInlineTranslation(segmentId: string) {
+    setInlineTranslationSegmentId((prev) => (prev === segmentId ? null : segmentId));
   }
 
   return (
@@ -855,12 +985,47 @@ export default function LinguaApp() {
                   <div className={cn("grid gap-6 p-6", sidebarCollapsed ? "md:grid-cols-[minmax(0,1fr)_340px]" : "xl:grid-cols-[minmax(0,1fr)_360px]")}>
                     <div className="space-y-6 min-w-0">
                       {error && <Alert><AlertDescription>{error}</AlertDescription></Alert>}
-                      <div className="rounded-[28px] border bg-card px-6 py-5 shadow-sm">
+                      <div ref={readingPanelRef} className="relative rounded-[28px] border bg-card px-6 py-5 shadow-sm">
                         <div className="mb-4 flex items-center justify-between gap-3"><div><div className="text-sm font-medium">{tx("Reading view", "Vista de lectura")}</div><div className="text-sm text-muted-foreground">{readingMode === "keep_formatting" ? tx("Keep formatting preserves the pasted spacing and line breaks exactly. Click any sentence once to focus it, and hover words for translation.", "Mantener formato conserva exactamente espacios y saltos de linea. Haz clic en una oracion para enfocarla y pasa el cursor por palabras para ver traduccion.") : tx("Click any sentence once to focus it. Hover a word to see its translation. Click a word in the focused sentence to open it.", "Haz clic en una oracion para enfocarla. Pasa el cursor por una palabra para ver su traduccion. Haz clic en una palabra de la oracion enfocada para abrirla.")}</div></div></div>
                         {readingMode === "keep_formatting" ? (
-                          <FormattedTextRenderer originalText={selectedText.originalText} segments={selectedText.segments} selectedSegmentId={selectedSegmentId} activePlaybackSegment={activePlaybackSegment} vocab={vocab} settings={settings} onSelectSegment={setSelectedSegmentId} onOpenWord={(token, seg) => { setSelectedSegmentId(seg.id); setSelectedWord({ token, segment: seg }); setCurrentDive(""); diveRequestedRef.current = false; }} />
+                          <FormattedTextRenderer originalText={selectedText.originalText} segments={selectedText.segments} selectedSegmentId={selectedSegmentId} activePlaybackSegment={activePlaybackSegment} inlineTranslationSegmentId={inlineTranslationSegmentId} vocab={vocab} settings={settings} onSelectSegment={(segmentId) => { setSelectedSegmentId(segmentId); setInlineTranslationSegmentId(null); }} onToggleInlineTranslation={toggleInlineTranslation} showInlineLabel={tx("Show inline translation", "Mostrar traduccion en linea")} hideInlineLabel={tx("Hide inline translation", "Ocultar traduccion en linea")} onSentenceRef={(segmentId, node) => { sentenceRefs.current[segmentId] = node; }} onOpenWord={(token, seg) => { setSelectedSegmentId(seg.id); setSelectedWord({ token, segment: seg }); setCurrentDive(""); diveRequestedRef.current = false; }} />
                         ) : (
-                          <div className="whitespace-pre-wrap text-lg leading-9 md:text-xl">{selectedText.segments.map((segment, index) => { const isFocused = selectedSegmentId === segment.id; return <span key={segment.id}><span role="button" tabIndex={0} onClick={() => setSelectedSegmentId(segment.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedSegmentId(segment.id); } }} className={cn("inline rounded px-1 py-0.5 transition", isFocused ? "bg-primary/10 ring-1 ring-primary/20" : "hover:bg-muted/50", activePlaybackSegment === segment.id && "bg-primary/10")}><TokenRenderer segment={segment} vocab={vocab} settings={settings} inline onWordSingleClick={(token, seg) => { if (selectedSegmentId === seg.id) { setSelectedWord({ token, segment: seg }); setCurrentDive(""); diveRequestedRef.current = false; } else { setSelectedSegmentId(seg.id); } }} onWordDoubleClick={(token, seg) => { setSelectedSegmentId(seg.id); setSelectedWord({ token, segment: seg }); setCurrentDive(""); diveRequestedRef.current = false; }} /></span>{index < selectedText.segments.length - 1 ? " " : ""}</span>; })}</div>
+                          <div className="whitespace-pre-wrap text-lg leading-9 md:text-xl">
+                            {selectedText.segments.map((segment, index) => {
+                              const isFocused = selectedSegmentId === segment.id;
+                              const inlineOpen = inlineTranslationSegmentId === segment.id;
+                              return (
+                                <React.Fragment key={segment.id}>
+                                  <span ref={(node) => { sentenceRefs.current[segment.id] = node; }} role="button" tabIndex={0} onClick={() => { setSelectedSegmentId(segment.id); setInlineTranslationSegmentId(null); }} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setSelectedSegmentId(segment.id); setInlineTranslationSegmentId(null); } }} className={cn("inline rounded px-1 py-0.5 transition", isFocused ? "bg-primary/10 ring-1 ring-primary/20" : "hover:bg-muted/50", activePlaybackSegment === segment.id && "bg-primary/10")}>
+                                    <TokenRenderer segment={segment} vocab={vocab} settings={settings} inline onWordSingleClick={(token, seg) => { if (selectedSegmentId === seg.id) { setSelectedWord({ token, segment: seg }); setCurrentDive(""); diveRequestedRef.current = false; } else { setSelectedSegmentId(seg.id); setInlineTranslationSegmentId(null); } }} onWordDoubleClick={(token, seg) => { setSelectedSegmentId(seg.id); setSelectedWord({ token, segment: seg }); setCurrentDive(""); diveRequestedRef.current = false; }} />
+                                  </span>
+                                  {isFocused && <button type="button" onClick={() => toggleInlineTranslation(segment.id)} className="ml-1 inline-flex items-center align-middle text-muted-foreground hover:text-foreground" title={inlineOpen ? tx("Hide inline translation", "Ocultar traduccion en linea") : tx("Show inline translation", "Mostrar traduccion en linea")}>{inlineOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}</button>}
+                                  {index < selectedText.segments.length - 1 ? " " : ""}
+                                </React.Fragment>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {inlineWordOverlay && (
+                          <div className="pointer-events-none absolute z-20" style={{ top: inlineWordOverlay.top, left: inlineWordOverlay.left, width: inlineWordOverlay.width }}>
+                            <div className="pointer-events-auto rounded-xl border bg-card/95 px-2 py-2 shadow-md backdrop-blur">
+                              <button
+                                type="button"
+                                onClick={() => setInlineTranslationSegmentId(null)}
+                                className="absolute right-1 top-1 inline-flex h-5 w-5 items-center justify-center rounded text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
+                                title={tx("Close", "Cerrar")}
+                              >
+                                x
+                              </button>
+                              <div className="relative min-h-8 pt-5">
+                                {inlineWordOverlay.entries.map((entry, idx) => (
+                                  <div key={`inline-word-${idx}`} className="absolute text-center text-xs text-muted-foreground" style={{ left: entry.left, width: entry.width, top: 0 }}>
+                                    <span className="inline-block max-w-full truncate">{entry.text}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
                         )}
                       </div>
                     </div>
