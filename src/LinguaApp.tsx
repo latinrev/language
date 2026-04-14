@@ -724,16 +724,16 @@ export default function LinguaApp() {
     <div className="min-h-screen bg-background text-foreground">
       <div className={cn("mx-auto grid max-w-7xl grid-cols-1 gap-4 p-4", sidebarCollapsed ? "lg:grid-cols-[84px_1fr]" : "lg:grid-cols-[320px_1fr]")}>
         <Card className="h-[calc(100vh-2rem)] overflow-hidden rounded-3xl border-0 shadow-xl">
-          <CardHeader className={cn("border-b bg-muted/30", sidebarCollapsed ? "space-y-3" : "space-y-4")}>
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-3">
+          <CardHeader className={cn("border-b bg-muted/30", sidebarCollapsed ? "space-y-3 p-2" : "space-y-4")}>
+            <div className={cn("flex items-center gap-2", sidebarCollapsed ? "flex-col" : "justify-between")}>
+              <div className={cn("flex items-center gap-3", sidebarCollapsed && "justify-center")}>
                 <div className="rounded-2xl bg-primary/10 p-2"><Languages className="h-5 w-5" /></div>
                 {!sidebarCollapsed && <div>
                   <CardTitle className="text-xl">Lingua</CardTitle>
                   <p className="text-sm text-muted-foreground">{tx("Study any text, word by word.", "Estudia cualquier texto, palabra por palabra.")}</p>
                 </div>}
               </div>
-              <div className="flex items-center gap-2">
+              <div className={cn("flex items-center gap-2", sidebarCollapsed && "flex-col")}>
                 <Button variant="outline" size="icon" className="rounded-2xl" onClick={() => setSidebarCollapsed((prev) => !prev)}>
                   {sidebarCollapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
                 </Button>
@@ -852,7 +852,7 @@ export default function LinguaApp() {
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div><CardTitle className="text-2xl">{selectedText.title}</CardTitle><div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground"><Badge variant="secondary">{getLanguageName(selectedText.sourceLang)}</Badge><span>→</span><Badge variant="secondary">{getLanguageName(selectedText.targetLang)}</Badge></div></div><div className="flex flex-wrap items-center gap-2"><div className="flex items-center rounded-2xl border bg-background p-1"><Button variant={readingMode === "normal" ? "default" : "ghost"} className="rounded-xl" size="sm" onClick={() => setReadingMode("normal")}>{tx("Normal", "Normal")}</Button><Button variant={readingMode === "keep_formatting" ? "default" : "ghost"} className="rounded-xl" size="sm" onClick={() => setReadingMode("keep_formatting")}>{tx("Keep formatting", "Mantener formato")}</Button></div><Button variant="outline" className="rounded-2xl" onClick={() => { if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); setActivePlaybackSegment(null); } else { void queueSpeak(selectedText.segments, selectedText.sourceLang, settings.playbackSpeed, settings.selectedVoiceURI, setActivePlaybackSegment); } }}>{window.speechSynthesis.speaking ? <Pause className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}{window.speechSynthesis.speaking ? tx("Stop full playback", "Detener reproduccion completa") : tx("Play full text", "Reproducir texto completo")}</Button></div></div>
                 </CardHeader>
                 <ScrollArea className="h-[calc(100vh-140px)]">
-                  <div className="grid gap-6 p-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+                  <div className={cn("grid gap-6 p-6", sidebarCollapsed ? "md:grid-cols-[minmax(0,1fr)_340px]" : "xl:grid-cols-[minmax(0,1fr)_360px]")}>
                     <div className="space-y-6 min-w-0">
                       {error && <Alert><AlertDescription>{error}</AlertDescription></Alert>}
                       <div className="rounded-[28px] border bg-card px-6 py-5 shadow-sm">
@@ -864,7 +864,7 @@ export default function LinguaApp() {
                         )}
                       </div>
                     </div>
-                    <div className="min-w-0 xl:sticky xl:top-0 xl:self-start">
+                    <div className={cn("min-w-0", sidebarCollapsed ? "md:sticky md:top-0 md:self-start" : "xl:sticky xl:top-0 xl:self-start")}>
                       {selectedSegment ? (
                         <div className="rounded-[28px] border bg-card p-5 shadow-sm">
                           <div className="flex flex-col gap-4"><div><div className="text-sm font-medium">{tx("Focused sentence", "Oracion enfocada")}</div><div className="mt-1 text-sm text-muted-foreground">{tx("Use the controls below for this sentence only.", "Usa estos controles solo para esta oracion.")}</div></div><div className="flex flex-wrap items-center gap-2"><Button variant="outline" size="icon" className="rounded-2xl" onClick={() => void speak(selectedSegment.original, selectedText.sourceLang, settings.playbackSpeed, settings.selectedVoiceURI)}><Volume2 className="h-4 w-4" /></Button><Button variant="outline" className="rounded-2xl" onClick={() => setShowTranslation((prev) => !prev)}>{showTranslation ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}{showTranslation ? tx("Hide translation", "Ocultar traduccion") : tx("Show translation", "Mostrar traduccion")}</Button><Button variant="outline" className="rounded-2xl" onClick={() => setShowExplanation((prev) => !prev)}>{showExplanation ? tx("Hide explanation", "Ocultar explicacion") : tx("Explain sentence", "Explicar oracion")}</Button></div></div>
