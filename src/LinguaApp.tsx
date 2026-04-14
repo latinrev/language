@@ -20,6 +20,7 @@ import { AnimatePresence, motion } from "framer-motion";
 type Provider = "openai" | "anthropic";
 type VocabState = "new" | "learning" | "known";
 type ReadingMode = "normal" | "keep_formatting";
+type UiLanguage = "en" | "es";
 type OpenAIModelId =
   | "gpt-5.4"
   | "gpt-5.4-pro"
@@ -79,6 +80,7 @@ type TextRecord = {
 };
 
 type SettingsState = {
+  uiLanguage: UiLanguage;
   provider: Provider;
   openaiKey: string;
   openaiModel: OpenAIModelId;
@@ -152,6 +154,7 @@ const SAMPLE_TEXTS: Record<string, { title: string; text: string }> = {
 };
 
 const DEFAULT_SETTINGS: SettingsState = {
+  uiLanguage: "en",
   provider: "openai",
   openaiKey: "",
   openaiModel: "gpt-5.4-mini",
@@ -439,8 +442,12 @@ async function queueSpeak(segments: Segment[], lang: string, rate: number, selec
   playNext();
 }
 
-function StatusButton({ value, active, onClick }: { value: VocabState; active: boolean; onClick: () => void }) {
-  return <Button variant={active ? "default" : "outline"} size="sm" onClick={onClick}>{value[0].toUpperCase() + value.slice(1)}</Button>;
+function StatusButton({ value, active, onClick, uiLanguage }: { value: VocabState; active: boolean; onClick: () => void; uiLanguage: UiLanguage }) {
+  const labelMap: Record<UiLanguage, Record<VocabState, string>> = {
+    en: { new: "New", learning: "Learning", known: "Known" },
+    es: { new: "Nuevo", learning: "Aprendiendo", known: "Conocido" },
+  };
+  return <Button variant={active ? "default" : "outline"} size="sm" onClick={onClick}>{labelMap[uiLanguage][value]}</Button>;
 }
 
 function TokenRenderer({ segment, vocab, settings, onWordSingleClick, onWordDoubleClick, inline = false }: {
@@ -608,6 +615,7 @@ export default function LinguaApp() {
     if (!q) return library;
     return library.filter((item) => `${item.title} ${item.originalText}`.toLowerCase().includes(q));
   }, [library, searchTerm]);
+  const tx = (en: string, es: string) => (settings.uiLanguage === "es" ? es : en);
 
   useEffect(() => {
     setSettings(storage.loadSettings());
@@ -653,7 +661,7 @@ export default function LinguaApp() {
 
   async function handleAnalyze() {
     if (!inputText.trim()) {
-      setError("Paste some text first.");
+      setError(tx("Paste some text first.", "Pega un texto primero."));
       return;
     }
     try {
@@ -661,14 +669,14 @@ export default function LinguaApp() {
       setError(null);
       const segments = await analyzeText(settings, sourceLang, targetLang, inputText.trim());
       const id = createId();
-      storage.saveText({ id, title: title.trim() || "Untitled text", sourceLang, targetLang, originalText: inputText, segments, createdAt: Date.now(), updatedAt: Date.now() });
+      storage.saveText({ id, title: title.trim() || tx("Untitled text", "Texto sin titulo"), sourceLang, targetLang, originalText: inputText, segments, createdAt: Date.now(), updatedAt: Date.now() });
       refreshLibrary();
       setSelectedTextId(id);
       setSelectedSegmentId(segments[0]?.id ?? null);
       setShowTranslation(!settings.hideTranslations);
       setShowExplanation(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown analysis error");
+      setError(err instanceof Error ? err.message : tx("Unknown analysis error", "Error de analisis desconocido"));
     } finally {
       setAnalysisLoading(false);
     }
@@ -705,7 +713,7 @@ export default function LinguaApp() {
       storage.saveDeepDive(sourceLang, targetLang, result.updatedCache);
       setCurrentDive(result.text);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Unknown deep-dive error");
+      setError(err instanceof Error ? err.message : tx("Unknown deep-dive error", "Error desconocido en analisis profundo"));
     } finally {
       setDeepDiveLoading(false);
     }
@@ -721,16 +729,26 @@ export default function LinguaApp() {
                 <div className="rounded-2xl bg-primary/10 p-2"><Languages className="h-5 w-5" /></div>
                 <div>
                   <CardTitle className="text-xl">Lingua</CardTitle>
-                  <p className="text-sm text-muted-foreground">Study any text, word by word.</p>
+                  <p className="text-sm text-muted-foreground">{tx("Study any text, word by word.", "Estudia cualquier texto, palabra por palabra.")}</p>
                 </div>
               </div>
               <Sheet>
                 <SheetTrigger asChild><Button variant="outline" size="icon" className="rounded-2xl"><Settings className="h-4 w-4" /></Button></SheetTrigger>
                 <SheetContent className="w-[420px] sm:w-[420px]">
-                  <SheetHeader><SheetTitle>Settings</SheetTitle></SheetHeader>
+                  <SheetHeader><SheetTitle>{tx("Settings", "Configuracion")}</SheetTitle></SheetHeader>
                   <div className="mt-6 space-y-6">
                     <div className="space-y-3">
-                      <Label>AI provider</Label>
+                      <Label>{tx("Interface language", "Idioma de la interfaz")}</Label>
+                      <Select value={settings.uiLanguage} onValueChange={(value: UiLanguage) => setSettings((s) => ({ ...s, uiLanguage: value }))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="en">English</SelectItem>
+                          <SelectItem value="es">Espanol</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-3">
+                      <Label>{tx("AI provider", "Proveedor de IA")}</Label>
                       <Select value={settings.provider} onValueChange={(value: Provider) => setSettings((s) => ({ ...s, provider: value }))}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
@@ -742,42 +760,42 @@ export default function LinguaApp() {
                     {settings.provider === "openai" ? (
                       <div className="space-y-4">
                         <div className="space-y-2">
-                          <Label>OpenAI model</Label>
+                          <Label>{tx("OpenAI model", "Modelo de OpenAI")}</Label>
                           <Select value={settings.openaiModel} onValueChange={(value: OpenAIModelId) => setSettings((s) => ({ ...s, openaiModel: value }))}>
                             <SelectTrigger><SelectValue /></SelectTrigger>
                             <SelectContent>{OPENAI_MODELS.map((m) => <SelectItem key={m.id} value={m.id}>{m.label}</SelectItem>)}</SelectContent>
                           </Select>
                         </div>
                         <div className="space-y-2">
-                          <Label>OpenAI API key</Label>
+                          <Label>{tx("OpenAI API key", "Clave API de OpenAI")}</Label>
                           <Input type="password" value={settings.openaiKey} onChange={(e) => setSettings((s) => ({ ...s, openaiKey: e.target.value }))} placeholder="sk-..." />
                         </div>
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        <Label>Anthropic API key</Label>
+                        <Label>{tx("Anthropic API key", "Clave API de Anthropic")}</Label>
                         <Input type="password" value={settings.anthropicKey} onChange={(e) => setSettings((s) => ({ ...s, anthropicKey: e.target.value }))} placeholder="sk-ant-..." />
                       </div>
                     )}
                     <Separator />
                     <div className="space-y-4">
-                      <div className="flex items-center justify-between"><Label>Dim known words</Label><Switch checked={settings.dimKnown} onCheckedChange={(checked) => setSettings((s) => ({ ...s, dimKnown: checked }))} /></div>
-                      <div className="flex items-center justify-between"><Label>Underline learning words</Label><Switch checked={settings.underlineLearning} onCheckedChange={(checked) => setSettings((s) => ({ ...s, underlineLearning: checked }))} /></div>
-                      <div className="flex items-center justify-between"><Label>Hide translations by default</Label><Switch checked={settings.hideTranslations} onCheckedChange={(checked) => setSettings((s) => ({ ...s, hideTranslations: checked }))} /></div>
-                      <div className="flex items-center justify-between"><Label>Hide known words</Label><Switch checked={settings.hideKnownWords} onCheckedChange={(checked) => setSettings((s) => ({ ...s, hideKnownWords: checked }))} /></div>
+                      <div className="flex items-center justify-between"><Label>{tx("Dim known words", "Atenuar palabras conocidas")}</Label><Switch checked={settings.dimKnown} onCheckedChange={(checked) => setSettings((s) => ({ ...s, dimKnown: checked }))} /></div>
+                      <div className="flex items-center justify-between"><Label>{tx("Underline learning words", "Subrayar palabras en aprendizaje")}</Label><Switch checked={settings.underlineLearning} onCheckedChange={(checked) => setSettings((s) => ({ ...s, underlineLearning: checked }))} /></div>
+                      <div className="flex items-center justify-between"><Label>{tx("Hide translations by default", "Ocultar traducciones por defecto")}</Label><Switch checked={settings.hideTranslations} onCheckedChange={(checked) => setSettings((s) => ({ ...s, hideTranslations: checked }))} /></div>
+                      <div className="flex items-center justify-between"><Label>{tx("Hide known words", "Ocultar palabras conocidas")}</Label><Switch checked={settings.hideKnownWords} onCheckedChange={(checked) => setSettings((s) => ({ ...s, hideKnownWords: checked }))} /></div>
                     </div>
                     <Separator />
                     <div className="space-y-4">
                       <div className="space-y-3">
-                        <div className="flex items-center justify-between"><Label>Playback speed</Label><span className="text-sm text-muted-foreground">{settings.playbackSpeed.toFixed(2)}x</span></div>
+                        <div className="flex items-center justify-between"><Label>{tx("Playback speed", "Velocidad de reproduccion")}</Label><span className="text-sm text-muted-foreground">{settings.playbackSpeed.toFixed(2)}x</span></div>
                         <Slider value={[settings.playbackSpeed]} min={0.5} max={1.25} step={0.25} onValueChange={(value) => setSettings((s) => ({ ...s, playbackSpeed: value[0] ?? 1 }))} />
                       </div>
                       <div className="space-y-2">
-                        <Label>Voice for source language</Label>
+                        <Label>{tx("Voice for source language", "Voz para el idioma origen")}</Label>
                         <Select value={settings.selectedVoiceURI} onValueChange={(value) => setSettings((s) => ({ ...s, selectedVoiceURI: value }))}>
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="auto">Auto-select best voice</SelectItem>
+                            <SelectItem value="auto">{tx("Auto-select best voice", "Seleccionar automaticamente la mejor voz")}</SelectItem>
                             {availableLanguageVoices.map((voice) => <SelectItem key={voice.voiceURI} value={voice.voiceURI}>{voice.name} · {voice.lang}{voice.localService ? " · local" : ""}</SelectItem>)}
                           </SelectContent>
                         </Select>
@@ -788,14 +806,14 @@ export default function LinguaApp() {
               </Sheet>
             </div>
             <div className="space-y-2">
-              <div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search library" className="pl-9" /></div>
-              <Button onClick={resetComposer} className="w-full rounded-2xl"><Plus className="mr-2 h-4 w-4" />New text</Button>
+              <div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder={tx("Search library", "Buscar en la biblioteca")} className="pl-9" /></div>
+              <Button onClick={resetComposer} className="w-full rounded-2xl"><Plus className="mr-2 h-4 w-4" />{tx("New text", "Nuevo texto")}</Button>
             </div>
           </CardHeader>
           <ScrollArea className="h-[calc(100vh-220px)]">
             <div className="space-y-3 p-4">
               {filteredLibrary.length === 0 ? (
-                <Card className="rounded-3xl border-dashed shadow-none"><CardContent className="flex flex-col items-center gap-3 p-8 text-center"><BookOpen className="h-8 w-8 text-muted-foreground" /><div><p className="font-medium">No saved texts yet</p><p className="text-sm text-muted-foreground">Analyze your first text and it will appear here.</p></div></CardContent></Card>
+                <Card className="rounded-3xl border-dashed shadow-none"><CardContent className="flex flex-col items-center gap-3 p-8 text-center"><BookOpen className="h-8 w-8 text-muted-foreground" /><div><p className="font-medium">{tx("No saved texts yet", "Todavia no hay textos guardados")}</p><p className="text-sm text-muted-foreground">{tx("Analyze your first text and it will appear here.", "Analiza tu primer texto y aparecera aqui.")}</p></div></CardContent></Card>
               ) : filteredLibrary.map((item) => (
                 <motion.button key={item.id} whileHover={{ y: -1 }} onClick={() => handleOpenText(item)} className={cn("w-full rounded-3xl border p-4 text-left transition", selectedTextId === item.id ? "border-primary bg-primary/5" : "bg-card hover:bg-muted/30")}>
                   <div className="flex items-start justify-between gap-3"><div className="min-w-0 flex-1"><div className="truncate font-medium">{item.title}</div><div className="mt-1 text-xs text-muted-foreground">{getLanguageName(item.sourceLang)} → {getLanguageName(item.targetLang)}</div><div className="mt-2 line-clamp-2 text-sm text-muted-foreground">{item.originalText}</div></div><Button variant="ghost" size="icon" className="rounded-2xl" onClick={(e) => { e.stopPropagation(); handleDeleteText(item.id); }}><Trash2 className="h-4 w-4" /></Button></div>
@@ -809,29 +827,29 @@ export default function LinguaApp() {
           {!selectedText ? (
             <Card className="min-h-[calc(100vh-2rem)] rounded-3xl border-0 shadow-xl">
               <CardContent className="flex h-full flex-col gap-6 p-6 md:p-8">
-                <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between"><div><h1 className="text-3xl font-semibold tracking-tight">Paste a text and study it deeply</h1><p className="mt-2 max-w-2xl text-muted-foreground">Lingua turns any article, poem, paragraph, or lyric into a layered reading experience with sentence explanations, clickable words, and cached grammar deep dives.</p></div><Button variant="outline" className="rounded-2xl" onClick={loadSample}><Sparkles className="mr-2 h-4 w-4" />Try a sample</Button></div>
+                <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between"><div><h1 className="text-3xl font-semibold tracking-tight">{tx("Paste a text and study it deeply", "Pega un texto y estudialo a fondo")}</h1><p className="mt-2 max-w-2xl text-muted-foreground">{tx("Lingua turns any article, poem, paragraph, or lyric into a layered reading experience with sentence explanations, clickable words, and cached grammar deep dives.", "Lingua convierte cualquier articulo, poema o parrafo en una experiencia de lectura por capas con explicaciones, palabras clicables y analisis gramatical profundo en cache.")}</p></div><Button variant="outline" className="rounded-2xl" onClick={loadSample}><Sparkles className="mr-2 h-4 w-4" />{tx("Try a sample", "Probar ejemplo")}</Button></div>
                 {error && <Alert><AlertDescription>{error}</AlertDescription></Alert>}
                 <div className="grid gap-4 md:grid-cols-3">
-                  <div className="space-y-2"><Label>Source language</Label><Select value={sourceLang} onValueChange={setSourceLang}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{LANGUAGES.map((lang) => <SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>)}</SelectContent></Select></div>
-                  <div className="space-y-2"><Label>Explanation language</Label><Select value={targetLang} onValueChange={setTargetLang}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{LANGUAGES.map((lang) => <SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>)}</SelectContent></Select></div>
-                  <div className="space-y-2"><Label>Title</Label><Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Optional title" /></div>
+                  <div className="space-y-2"><Label>{tx("Source language", "Idioma origen")}</Label><Select value={sourceLang} onValueChange={setSourceLang}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{LANGUAGES.map((lang) => <SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-2"><Label>{tx("Explanation language", "Idioma de explicacion")}</Label><Select value={targetLang} onValueChange={setTargetLang}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{LANGUAGES.map((lang) => <SelectItem key={lang.code} value={lang.code}>{lang.name}</SelectItem>)}</SelectContent></Select></div>
+                  <div className="space-y-2"><Label>{tx("Title", "Titulo")}</Label><Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={tx("Optional title", "Titulo opcional")} /></div>
                 </div>
-                <Card className="rounded-3xl shadow-none"><CardHeader><CardTitle className="text-lg">Text to study</CardTitle></CardHeader><CardContent><Textarea value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder="Paste a song, a paragraph, a poem, a news excerpt, or anything else you want to study." className="min-h-[380px] resize-none rounded-2xl" /></CardContent></Card>
-                <div className="flex flex-wrap items-center gap-3"><Button onClick={handleAnalyze} disabled={analysisLoading} className="rounded-2xl px-6">{analysisLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookOpen className="mr-2 h-4 w-4" />}Study this text</Button><Button variant="outline" className="rounded-2xl" onClick={loadSample}>Load sample text</Button></div>
+                <Card className="rounded-3xl shadow-none"><CardHeader><CardTitle className="text-lg">{tx("Text to study", "Texto para estudiar")}</CardTitle></CardHeader><CardContent><Textarea value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder={tx("Paste a song, a paragraph, a poem, a news excerpt, or anything else you want to study.", "Pega una cancion, un parrafo, un poema, una noticia o cualquier texto que quieras estudiar.")} className="min-h-[380px] resize-none rounded-2xl" /></CardContent></Card>
+                <div className="flex flex-wrap items-center gap-3"><Button onClick={handleAnalyze} disabled={analysisLoading} className="rounded-2xl px-6">{analysisLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookOpen className="mr-2 h-4 w-4" />}{tx("Study this text", "Estudiar este texto")}</Button><Button variant="outline" className="rounded-2xl" onClick={loadSample}>{tx("Load sample text", "Cargar texto de ejemplo")}</Button></div>
               </CardContent>
             </Card>
           ) : (
             <div className="h-[calc(100vh-2rem)]">
               <Card className="h-full overflow-hidden rounded-3xl border-0 shadow-xl">
                 <CardHeader className="border-b bg-muted/20">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div><CardTitle className="text-2xl">{selectedText.title}</CardTitle><div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground"><Badge variant="secondary">{getLanguageName(selectedText.sourceLang)}</Badge><span>→</span><Badge variant="secondary">{getLanguageName(selectedText.targetLang)}</Badge></div></div><div className="flex flex-wrap items-center gap-2"><div className="flex items-center rounded-2xl border bg-background p-1"><Button variant={readingMode === "normal" ? "default" : "ghost"} className="rounded-xl" size="sm" onClick={() => setReadingMode("normal")}>Normal</Button><Button variant={readingMode === "keep_formatting" ? "default" : "ghost"} className="rounded-xl" size="sm" onClick={() => setReadingMode("keep_formatting")}>Keep formatting</Button></div><Button variant="outline" className="rounded-2xl" onClick={() => { if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); setActivePlaybackSegment(null); } else { void queueSpeak(selectedText.segments, selectedText.sourceLang, settings.playbackSpeed, settings.selectedVoiceURI, setActivePlaybackSegment); } }}>{window.speechSynthesis.speaking ? <Pause className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}{window.speechSynthesis.speaking ? "Stop full playback" : "Play full text"}</Button></div></div>
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div><CardTitle className="text-2xl">{selectedText.title}</CardTitle><div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground"><Badge variant="secondary">{getLanguageName(selectedText.sourceLang)}</Badge><span>→</span><Badge variant="secondary">{getLanguageName(selectedText.targetLang)}</Badge></div></div><div className="flex flex-wrap items-center gap-2"><div className="flex items-center rounded-2xl border bg-background p-1"><Button variant={readingMode === "normal" ? "default" : "ghost"} className="rounded-xl" size="sm" onClick={() => setReadingMode("normal")}>{tx("Normal", "Normal")}</Button><Button variant={readingMode === "keep_formatting" ? "default" : "ghost"} className="rounded-xl" size="sm" onClick={() => setReadingMode("keep_formatting")}>{tx("Keep formatting", "Mantener formato")}</Button></div><Button variant="outline" className="rounded-2xl" onClick={() => { if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); setActivePlaybackSegment(null); } else { void queueSpeak(selectedText.segments, selectedText.sourceLang, settings.playbackSpeed, settings.selectedVoiceURI, setActivePlaybackSegment); } }}>{window.speechSynthesis.speaking ? <Pause className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}{window.speechSynthesis.speaking ? tx("Stop full playback", "Detener reproduccion completa") : tx("Play full text", "Reproducir texto completo")}</Button></div></div>
                 </CardHeader>
                 <ScrollArea className="h-[calc(100vh-140px)]">
                   <div className="grid gap-6 p-6 xl:grid-cols-[minmax(0,1fr)_360px]">
                     <div className="space-y-6 min-w-0">
                       {error && <Alert><AlertDescription>{error}</AlertDescription></Alert>}
                       <div className="rounded-[28px] border bg-card px-6 py-5 shadow-sm">
-                        <div className="mb-4 flex items-center justify-between gap-3"><div><div className="text-sm font-medium">Reading view</div><div className="text-sm text-muted-foreground">{readingMode === "keep_formatting" ? "Keep formatting preserves the pasted spacing and line breaks exactly. Click any sentence once to focus it, and hover words for translation." : "Click any sentence once to focus it. Hover a word to see its translation. Click a word in the focused sentence to open it."}</div></div></div>
+                        <div className="mb-4 flex items-center justify-between gap-3"><div><div className="text-sm font-medium">{tx("Reading view", "Vista de lectura")}</div><div className="text-sm text-muted-foreground">{readingMode === "keep_formatting" ? tx("Keep formatting preserves the pasted spacing and line breaks exactly. Click any sentence once to focus it, and hover words for translation.", "Mantener formato conserva exactamente espacios y saltos de linea. Haz clic en una oracion para enfocarla y pasa el cursor por palabras para ver traduccion.") : tx("Click any sentence once to focus it. Hover a word to see its translation. Click a word in the focused sentence to open it.", "Haz clic en una oracion para enfocarla. Pasa el cursor por una palabra para ver su traduccion. Haz clic en una palabra de la oracion enfocada para abrirla.")}</div></div></div>
                         {readingMode === "keep_formatting" ? (
                           <FormattedTextRenderer originalText={selectedText.originalText} segments={selectedText.segments} selectedSegmentId={selectedSegmentId} activePlaybackSegment={activePlaybackSegment} vocab={vocab} settings={settings} onSelectSegment={setSelectedSegmentId} onOpenWord={(token, seg) => { setSelectedSegmentId(seg.id); setSelectedWord({ token, segment: seg }); setCurrentDive(""); diveRequestedRef.current = false; }} />
                         ) : (
@@ -842,13 +860,13 @@ export default function LinguaApp() {
                     <div className="min-w-0 xl:sticky xl:top-0 xl:self-start">
                       {selectedSegment ? (
                         <div className="rounded-[28px] border bg-card p-5 shadow-sm">
-                          <div className="flex flex-col gap-4"><div><div className="text-sm font-medium">Focused sentence</div><div className="mt-1 text-sm text-muted-foreground">Use the controls below for this sentence only.</div></div><div className="flex flex-wrap items-center gap-2"><Button variant="outline" size="icon" className="rounded-2xl" onClick={() => void speak(selectedSegment.original, selectedText.sourceLang, settings.playbackSpeed, settings.selectedVoiceURI)}><Volume2 className="h-4 w-4" /></Button><Button variant="outline" className="rounded-2xl" onClick={() => setShowTranslation((prev) => !prev)}>{showTranslation ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}{showTranslation ? "Hide translation" : "Show translation"}</Button><Button variant="outline" className="rounded-2xl" onClick={() => setShowExplanation((prev) => !prev)}>{showExplanation ? "Hide explanation" : "Explain sentence"}</Button></div></div>
+                          <div className="flex flex-col gap-4"><div><div className="text-sm font-medium">{tx("Focused sentence", "Oracion enfocada")}</div><div className="mt-1 text-sm text-muted-foreground">{tx("Use the controls below for this sentence only.", "Usa estos controles solo para esta oracion.")}</div></div><div className="flex flex-wrap items-center gap-2"><Button variant="outline" size="icon" className="rounded-2xl" onClick={() => void speak(selectedSegment.original, selectedText.sourceLang, settings.playbackSpeed, settings.selectedVoiceURI)}><Volume2 className="h-4 w-4" /></Button><Button variant="outline" className="rounded-2xl" onClick={() => setShowTranslation((prev) => !prev)}>{showTranslation ? <EyeOff className="mr-2 h-4 w-4" /> : <Eye className="mr-2 h-4 w-4" />}{showTranslation ? tx("Hide translation", "Ocultar traduccion") : tx("Show translation", "Mostrar traduccion")}</Button><Button variant="outline" className="rounded-2xl" onClick={() => setShowExplanation((prev) => !prev)}>{showExplanation ? tx("Hide explanation", "Ocultar explicacion") : tx("Explain sentence", "Explicar oracion")}</Button></div></div>
                           <div className="mt-4 max-h-[calc(100vh-260px)] overflow-y-auto pr-1">
-                            {showTranslation && <div className="space-y-3 text-sm md:text-base"><div className="rounded-2xl bg-muted/30 p-3"><div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Natural translation</div><div>{selectedSegment.translation}</div></div><div className="rounded-2xl bg-muted/20 p-3"><div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Literal translation</div><div>{selectedSegment.literal}</div></div><div className="rounded-2xl bg-muted/20 p-3"><div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Grammar note</div><div>{selectedSegment.grammar_note}</div></div>{selectedSegment.pronunciation_note && <div className="rounded-2xl bg-muted/20 p-3"><div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Pronunciation note</div><div>{selectedSegment.pronunciation_note}</div></div>}</div>}
-                            <AnimatePresence initial={false}>{showExplanation && <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden"><div className="mt-4 space-y-3 rounded-2xl border bg-muted/20 p-4 text-sm"><div><div className="mb-1 font-medium">Sentence explanation</div><div className="text-muted-foreground">{selectedSegment.sentence_explanation || "No sentence explanation was returned."}</div></div>{selectedSegment.simplified && <div><div className="mb-1 font-medium">Simplified version</div><div className="text-muted-foreground">{selectedSegment.simplified}</div></div>}{Array.isArray(selectedSegment.sub_segments) && selectedSegment.sub_segments.length > 0 && <div><div className="mb-1 font-medium">Clause breakdown</div><div className="flex flex-wrap gap-2">{selectedSegment.sub_segments.map((sub, idx) => <Badge key={`${selectedSegment.id}-sub-${idx}`} variant="secondary" className="rounded-xl px-3 py-1 whitespace-normal text-left">{sub}</Badge>)}</div></div>}</div></motion.div>}</AnimatePresence>
+                            {showTranslation && <div className="space-y-3 text-sm md:text-base"><div className="rounded-2xl bg-muted/30 p-3"><div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">{tx("Natural translation", "Traduccion natural")}</div><div>{selectedSegment.translation}</div></div><div className="rounded-2xl bg-muted/20 p-3"><div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">{tx("Literal translation", "Traduccion literal")}</div><div>{selectedSegment.literal}</div></div><div className="rounded-2xl bg-muted/20 p-3"><div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">{tx("Grammar note", "Nota gramatical")}</div><div>{selectedSegment.grammar_note}</div></div>{selectedSegment.pronunciation_note && <div className="rounded-2xl bg-muted/20 p-3"><div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">{tx("Pronunciation note", "Nota de pronunciacion")}</div><div>{selectedSegment.pronunciation_note}</div></div>}</div>}
+                            <AnimatePresence initial={false}>{showExplanation && <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden"><div className="mt-4 space-y-3 rounded-2xl border bg-muted/20 p-4 text-sm"><div><div className="mb-1 font-medium">{tx("Sentence explanation", "Explicacion de la oracion")}</div><div className="text-muted-foreground">{selectedSegment.sentence_explanation || tx("No sentence explanation was returned.", "No se devolvio explicacion de la oracion.")}</div></div>{selectedSegment.simplified && <div><div className="mb-1 font-medium">{tx("Simplified version", "Version simplificada")}</div><div className="text-muted-foreground">{selectedSegment.simplified}</div></div>}{Array.isArray(selectedSegment.sub_segments) && selectedSegment.sub_segments.length > 0 && <div><div className="mb-1 font-medium">{tx("Clause breakdown", "Desglose de clausulas")}</div><div className="flex flex-wrap gap-2">{selectedSegment.sub_segments.map((sub, idx) => <Badge key={`${selectedSegment.id}-sub-${idx}`} variant="secondary" className="rounded-xl px-3 py-1 whitespace-normal text-left">{sub}</Badge>)}</div></div>}</div></motion.div>}</AnimatePresence>
                           </div>
                         </div>
-                      ) : <div className="rounded-[28px] border bg-card p-5 text-sm text-muted-foreground shadow-sm">Select a sentence to see its translation and explanation here.</div>}
+                      ) : <div className="rounded-[28px] border bg-card p-5 text-sm text-muted-foreground shadow-sm">{tx("Select a sentence to see its translation and explanation here.", "Selecciona una oracion para ver su traduccion y explicacion aqui.")}</div>}
                     </div>
                   </div>
                 </ScrollArea>
@@ -860,7 +878,7 @@ export default function LinguaApp() {
 
       <Dialog open={Boolean(selectedWord)} onOpenChange={(open) => !open && setSelectedWord(null)}>
         <DialogContent className="max-h-[90vh] max-w-3xl overflow-hidden rounded-3xl p-0">
-          {selectedWord && <div className="flex h-full flex-col"><DialogHeader className="border-b p-6"><DialogTitle className="text-2xl">{selectedWord.token.surface}{selectedWord.token.lemma !== selectedWord.token.surface ? <span className="ml-2 text-base font-normal text-muted-foreground">({selectedWord.token.lemma})</span> : null}</DialogTitle><DialogDescription>Layer 1 is instant. Layer 2 generates and caches a full deep dive by lemma.</DialogDescription></DialogHeader><ScrollArea className="max-h-[75vh]"><div className="space-y-6 p-6"><Card className="rounded-3xl shadow-none"><CardHeader><CardTitle className="text-lg">Quick understanding</CardTitle></CardHeader><CardContent className="space-y-4"><div className="flex flex-wrap items-center gap-2"><Badge>{selectedWord.token.pos}</Badge>{typeof selectedWord.token.difficulty === "number" && <Badge variant="secondary">Difficulty {selectedWord.token.difficulty}/5</Badge>}{selectedWord.token.is_idiom && <Badge variant="secondary">Idiomatic</Badge>}</div><div className="grid gap-4 md:grid-cols-3"><div className="rounded-2xl bg-muted/20 p-4"><div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Gloss</div><div className="font-medium">{selectedWord.token.gloss || "—"}</div></div><div className="rounded-2xl bg-muted/20 p-4"><div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Meaning in this sentence</div><div className="font-medium">{selectedWord.token.meaning_in_sentence || selectedWord.token.gloss || "—"}</div></div><div className="rounded-2xl bg-muted/20 p-4"><div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Pronunciation hint</div><div className="font-medium">{selectedWord.token.pronunciation_hint || "Generate or reanalyze for a quick hint."}</div></div></div><div className="rounded-2xl bg-muted/20 p-4"><div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">Sentence</div><div>{selectedWord.segment.original}</div></div><div className="flex flex-wrap gap-2">{(["new", "learning", "known"] as VocabState[]).map((state) => <StatusButton key={state} value={state} active={(vocab[selectedWord.token.lemma.toLowerCase()] ?? "new") === state} onClick={() => updateLemmaState(selectedWord.token.lemma, state)} />)}<Button variant="outline" size="sm" onClick={() => void speak(selectedWord.token.surface, sourceLang, settings.playbackSpeed, settings.selectedVoiceURI)}><Volume2 className="mr-2 h-4 w-4" />Play word</Button></div></CardContent></Card><Card className="rounded-3xl shadow-none"><CardHeader><div className="flex items-center justify-between gap-3"><CardTitle className="text-lg">Full deep dive</CardTitle><Button onClick={handleExpandDeepDive} disabled={deepDiveLoading} className="rounded-2xl">{deepDiveLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}{currentDive ? "Refresh deep dive" : "Generate deep dive"}</Button></div></CardHeader><CardContent>{currentDive ? <div className="whitespace-pre-wrap rounded-2xl bg-muted/20 p-4 text-sm leading-7">{currentDive}</div> : <div className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">Generate the rich explanation only when you need it. Results are cached by lemma for this source and target language pair.</div>}</CardContent></Card></div></ScrollArea></div>}
+          {selectedWord && <div className="flex h-full flex-col"><DialogHeader className="border-b p-6"><DialogTitle className="text-2xl">{selectedWord.token.surface}{selectedWord.token.lemma !== selectedWord.token.surface ? <span className="ml-2 text-base font-normal text-muted-foreground">({selectedWord.token.lemma})</span> : null}</DialogTitle><DialogDescription>{tx("Layer 1 is instant. Layer 2 generates and caches a full deep dive by lemma.", "La capa 1 es instantanea. La capa 2 genera y guarda en cache un analisis profundo por lema.")}</DialogDescription></DialogHeader><ScrollArea className="max-h-[75vh]"><div className="space-y-6 p-6"><Card className="rounded-3xl shadow-none"><CardHeader><CardTitle className="text-lg">{tx("Quick understanding", "Comprension rapida")}</CardTitle></CardHeader><CardContent className="space-y-4"><div className="flex flex-wrap items-center gap-2"><Badge>{selectedWord.token.pos}</Badge>{typeof selectedWord.token.difficulty === "number" && <Badge variant="secondary">{tx("Difficulty", "Dificultad")} {selectedWord.token.difficulty}/5</Badge>}{selectedWord.token.is_idiom && <Badge variant="secondary">{tx("Idiomatic", "Idiomatico")}</Badge>}</div><div className="grid gap-4 md:grid-cols-3"><div className="rounded-2xl bg-muted/20 p-4"><div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">{tx("Gloss", "Glosa")}</div><div className="font-medium">{selectedWord.token.gloss || "—"}</div></div><div className="rounded-2xl bg-muted/20 p-4"><div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">{tx("Meaning in this sentence", "Significado en esta oracion")}</div><div className="font-medium">{selectedWord.token.meaning_in_sentence || selectedWord.token.gloss || "—"}</div></div><div className="rounded-2xl bg-muted/20 p-4"><div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">{tx("Pronunciation hint", "Pista de pronunciacion")}</div><div className="font-medium">{selectedWord.token.pronunciation_hint || tx("Generate or reanalyze for a quick hint.", "Genera o reanaliza para una pista rapida.")}</div></div></div><div className="rounded-2xl bg-muted/20 p-4"><div className="mb-1 text-xs uppercase tracking-wide text-muted-foreground">{tx("Sentence", "Oracion")}</div><div>{selectedWord.segment.original}</div></div><div className="flex flex-wrap gap-2">{(["new", "learning", "known"] as VocabState[]).map((state) => <StatusButton key={state} value={state} uiLanguage={settings.uiLanguage} active={(vocab[selectedWord.token.lemma.toLowerCase()] ?? "new") === state} onClick={() => updateLemmaState(selectedWord.token.lemma, state)} />)}<Button variant="outline" size="sm" onClick={() => void speak(selectedWord.token.surface, sourceLang, settings.playbackSpeed, settings.selectedVoiceURI)}><Volume2 className="mr-2 h-4 w-4" />{tx("Play word", "Reproducir palabra")}</Button></div></CardContent></Card><Card className="rounded-3xl shadow-none"><CardHeader><div className="flex items-center justify-between gap-3"><CardTitle className="text-lg">{tx("Full deep dive", "Analisis profundo completo")}</CardTitle><Button onClick={handleExpandDeepDive} disabled={deepDiveLoading} className="rounded-2xl">{deepDiveLoading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Sparkles className="mr-2 h-4 w-4" />}{currentDive ? tx("Refresh deep dive", "Actualizar analisis profundo") : tx("Generate deep dive", "Generar analisis profundo")}</Button></div></CardHeader><CardContent>{currentDive ? <div className="whitespace-pre-wrap rounded-2xl bg-muted/20 p-4 text-sm leading-7">{currentDive}</div> : <div className="rounded-2xl border border-dashed p-6 text-sm text-muted-foreground">{tx("Generate the rich explanation only when you need it. Results are cached by lemma for this source and target language pair.", "Genera la explicacion completa solo cuando la necesites. Los resultados se guardan en cache por lema para este par de idiomas.")}</div>}</CardContent></Card></div></ScrollArea></div>}
         </DialogContent>
       </Dialog>
     </div>
