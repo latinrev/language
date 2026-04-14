@@ -14,7 +14,7 @@ import { Slider } from "@/components/ui/slider";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
-import { BookOpen, Languages, Loader2, Play, Pause, Settings, Plus, Trash2, Search, Volume2, Sparkles, Eye, EyeOff } from "lucide-react";
+import { BookOpen, Languages, Loader2, Play, Pause, Settings, Plus, Trash2, Search, Volume2, Sparkles, Eye, EyeOff, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 
 type Provider = "openai" | "anthropic";
@@ -603,6 +603,7 @@ export default function LinguaApp() {
   const [error, setError] = useState<string | null>(null);
   const [activePlaybackSegment, setActivePlaybackSegment] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [availableLanguageVoices, setAvailableLanguageVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [vocabVersion, setVocabVersion] = useState(0);
   const diveRequestedRef = useRef(false);
@@ -721,19 +722,23 @@ export default function LinguaApp() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto grid max-w-7xl grid-cols-1 gap-4 p-4 lg:grid-cols-[320px_1fr]">
+      <div className={cn("mx-auto grid max-w-7xl grid-cols-1 gap-4 p-4", sidebarCollapsed ? "lg:grid-cols-[84px_1fr]" : "lg:grid-cols-[320px_1fr]")}>
         <Card className="h-[calc(100vh-2rem)] overflow-hidden rounded-3xl border-0 shadow-xl">
-          <CardHeader className="space-y-4 border-b bg-muted/30">
+          <CardHeader className={cn("border-b bg-muted/30", sidebarCollapsed ? "space-y-3" : "space-y-4")}>
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-3">
                 <div className="rounded-2xl bg-primary/10 p-2"><Languages className="h-5 w-5" /></div>
-                <div>
+                {!sidebarCollapsed && <div>
                   <CardTitle className="text-xl">Lingua</CardTitle>
                   <p className="text-sm text-muted-foreground">{tx("Study any text, word by word.", "Estudia cualquier texto, palabra por palabra.")}</p>
-                </div>
+                </div>}
               </div>
-              <Sheet>
-                <SheetTrigger asChild><Button variant="outline" size="icon" className="rounded-2xl"><Settings className="h-4 w-4" /></Button></SheetTrigger>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="icon" className="rounded-2xl" onClick={() => setSidebarCollapsed((prev) => !prev)}>
+                  {sidebarCollapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
+                </Button>
+                <Sheet>
+                  <SheetTrigger asChild><Button variant="outline" size="icon" className="rounded-2xl"><Settings className="h-4 w-4" /></Button></SheetTrigger>
                 <SheetContent className="w-[420px] sm:w-[420px]">
                   <SheetHeader><SheetTitle>{tx("Settings", "Configuracion")}</SheetTitle></SheetHeader>
                   <div className="mt-6 space-y-6">
@@ -803,14 +808,16 @@ export default function LinguaApp() {
                     </div>
                   </div>
                 </SheetContent>
-              </Sheet>
+                </Sheet>
+              </div>
             </div>
-            <div className="space-y-2">
+            {!sidebarCollapsed && <div className="space-y-2">
               <div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder={tx("Search library", "Buscar en la biblioteca")} className="pl-9" /></div>
               <Button onClick={resetComposer} className="w-full rounded-2xl"><Plus className="mr-2 h-4 w-4" />{tx("New text", "Nuevo texto")}</Button>
-            </div>
+            </div>}
+            {sidebarCollapsed && <Button onClick={resetComposer} variant="outline" size="icon" className="w-full rounded-2xl"><Plus className="h-4 w-4" /></Button>}
           </CardHeader>
-          <ScrollArea className="h-[calc(100vh-220px)]">
+          {!sidebarCollapsed && <ScrollArea className="h-[calc(100vh-220px)]">
             <div className="space-y-3 p-4">
               {filteredLibrary.length === 0 ? (
                 <Card className="rounded-3xl border-dashed shadow-none"><CardContent className="flex flex-col items-center gap-3 p-8 text-center"><BookOpen className="h-8 w-8 text-muted-foreground" /><div><p className="font-medium">{tx("No saved texts yet", "Todavia no hay textos guardados")}</p><p className="text-sm text-muted-foreground">{tx("Analyze your first text and it will appear here.", "Analiza tu primer texto y aparecera aqui.")}</p></div></CardContent></Card>
@@ -820,7 +827,7 @@ export default function LinguaApp() {
                 </motion.button>
               ))}
             </div>
-          </ScrollArea>
+          </ScrollArea>}
         </Card>
 
         <div className="min-h-[calc(100vh-2rem)]">
