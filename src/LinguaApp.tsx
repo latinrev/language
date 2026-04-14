@@ -852,8 +852,8 @@ export default function LinguaApp() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      <div className={cn("mx-auto grid max-w-7xl grid-cols-1 gap-4 p-4", sidebarCollapsed ? "lg:grid-cols-[84px_1fr]" : "lg:grid-cols-[320px_1fr]")}>
-        <Card className="h-[calc(100vh-2rem)] overflow-hidden rounded-3xl border-0 shadow-xl">
+      <div className={cn("grid w-full grid-cols-1 gap-4", sidebarCollapsed ? "lg:grid-cols-[84px_1fr]" : "lg:grid-cols-[320px_1fr]")}>
+        <Card className="h-screen overflow-hidden rounded-none border-r shadow-none">
           <CardHeader className={cn("border-b bg-muted/30", sidebarCollapsed ? "space-y-3 p-2" : "space-y-4")}>
             <div className={cn("flex items-center gap-2", sidebarCollapsed ? "flex-col" : "justify-between")}>
               <div className={cn("flex items-center gap-3", sidebarCollapsed && "justify-center")}>
@@ -960,9 +960,9 @@ export default function LinguaApp() {
           </ScrollArea>}
         </Card>
 
-        <div className="min-h-[calc(100vh-2rem)]">
+        <div className="min-h-screen">
           {!selectedText ? (
-            <Card className="min-h-[calc(100vh-2rem)] rounded-3xl border-0 shadow-xl">
+            <Card className="min-h-screen rounded-none border-0 shadow-none">
               <CardContent className="flex h-full flex-col gap-6 p-6 md:p-8">
                 <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between"><div><h1 className="text-3xl font-semibold tracking-tight">{tx("Paste a text and study it deeply", "Pega un texto y estudialo a fondo")}</h1><p className="mt-2 max-w-2xl text-muted-foreground">{tx("Lingua turns any article, poem, paragraph, or lyric into a layered reading experience with sentence explanations, clickable words, and cached grammar deep dives.", "Lingua convierte cualquier articulo, poema o parrafo en una experiencia de lectura por capas con explicaciones, palabras clicables y analisis gramatical profundo en cache.")}</p></div><Button variant="outline" className="rounded-2xl" onClick={loadSample}><Sparkles className="mr-2 h-4 w-4" />{tx("Try a sample", "Probar ejemplo")}</Button></div>
                 {error && <Alert><AlertDescription>{error}</AlertDescription></Alert>}
@@ -976,8 +976,8 @@ export default function LinguaApp() {
               </CardContent>
             </Card>
           ) : (
-            <div className="h-[calc(100vh-2rem)]">
-              <Card className="h-full overflow-hidden rounded-3xl border-0 shadow-xl">
+            <div className="h-screen">
+              <Card className="h-full overflow-hidden rounded-none border-0 shadow-none">
                 <CardHeader className="border-b bg-muted/20">
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between"><div><CardTitle className="text-2xl">{selectedText.title}</CardTitle><div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-muted-foreground"><Badge variant="secondary">{getLanguageName(selectedText.sourceLang)}</Badge><span>→</span><Badge variant="secondary">{getLanguageName(selectedText.targetLang)}</Badge></div></div><div className="flex flex-wrap items-center gap-2"><div className="flex items-center rounded-2xl border bg-background p-1"><Button variant={readingMode === "normal" ? "default" : "ghost"} className="rounded-xl" size="sm" onClick={() => setReadingMode("normal")}>{tx("Normal", "Normal")}</Button><Button variant={readingMode === "keep_formatting" ? "default" : "ghost"} className="rounded-xl" size="sm" onClick={() => setReadingMode("keep_formatting")}>{tx("Keep formatting", "Mantener formato")}</Button></div><Button variant="outline" className="rounded-2xl" onClick={() => { if (window.speechSynthesis.speaking) { window.speechSynthesis.cancel(); setActivePlaybackSegment(null); } else { void queueSpeak(selectedText.segments, selectedText.sourceLang, settings.playbackSpeed, settings.selectedVoiceURI, setActivePlaybackSegment); } }}>{window.speechSynthesis.speaking ? <Pause className="mr-2 h-4 w-4" /> : <Play className="mr-2 h-4 w-4" />}{window.speechSynthesis.speaking ? tx("Stop full playback", "Detener reproduccion completa") : tx("Play full text", "Reproducir texto completo")}</Button></div></div>
                 </CardHeader>
@@ -1056,3 +1056,5 @@ export default function LinguaApp() {
     </div>
   );
 }
+
+
